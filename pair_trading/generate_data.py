@@ -38,12 +38,9 @@ def write_universe(symbols: List[str], overwrite: bool = True, max_retry: int = 
 
         try:
             info, hist = load_symbol(symbol, max_retry, **kwargs)
-        except DataError:
-            continue
-        try:
             write_symbol(dir, info, hist)
-        except:
-            pass
+        except Exception:
+            continue
 
 
 def write_symbol(dir, info, hist):
@@ -57,6 +54,43 @@ def write_symbol(dir, info, hist):
     log.info(f"Written data to {dir}")
 
 
+def write_info(universe: List[str]):
+    info = []
+    dir = pkg_resources.resource_filename("pair_trading", "data")
+    for stock in universe:
+        try:
+            with open(os.path.join(dir, f"stocks\\{stock}\\info.pkl"), "rb") as f:
+                info.append(pickle.load(f))
+        except Exception as e:
+            log.warning(f"Failed to get {stock} info - {e}")
+
+    info = pd.DataFrame(info)
+    path = os.path.join(dir, "info.csv")
+    log.info(f"Writing {path}")
+    info.to_csv(path)
+
+
+def write_items(universe: List[str], items: List[str] = None):
+    if items is None:
+        items = ["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"]
+
+    hist = {}
+    dir = pkg_resources.resource_filename("pair_trading", "data")
+    for stock in universe:
+        try:
+            hist[stock] = pd.read_csv(os.path.join(dir, f"stocks\\{stock}\\hist.csv"), index_col="Date")
+        except Exception as e:
+            log.warning(f"Failed to get {stock} history - {e}")
+
+    for item in items:
+        df = pd.DataFrame({k: v[item] for k, v in hist.items() if item in v}).reindex(columns=universe)
+        path = os.path.join(dir, f"{item}.csv")
+        log.info(f"Writing {path}")
+        df.to_csv(path)
+
+
 if __name__ == "__main__":
     from pair_trading.universe import UNIVERSE
     write_universe(UNIVERSE, overwrite=False, start="2000-01-01", end="2021-01-01")
+    write_info(UNIVERSE)
+    write_items(UNIVERSE)
